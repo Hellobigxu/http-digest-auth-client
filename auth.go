@@ -39,7 +39,7 @@ const (
 	nc = "00000001"
 )
 
-func Auth(username, password, method, uri string) (bool, error) {
+func Auth(username, password, method, uri string) (string, error) {
 	client := DefaultTimeoutClient()
 	jar := &myjar{}
 	jar.jar = make(map[string][]*http.Cookie)
@@ -49,7 +49,7 @@ func Auth(username, password, method, uri string) (bool, error) {
 	var err error
 	req, err = http.NewRequest(method, uri, nil)
 	if err != nil {
-		return false, err
+		return "", err
 	}
 	u, _ := url.Parse(uri)
 	headers := http.Header{
@@ -63,7 +63,7 @@ func Auth(username, password, method, uri string) (bool, error) {
 
 	resp, err = client.Do(req)
 	if err != nil {
-		return false, err
+		return "", err
 	}
 	// you HAVE to read the whole body and then close it to reuse the http connection
 	// otherwise it *could* fail in certain environments (behind proxy for instance)
@@ -109,13 +109,20 @@ func Auth(username, password, method, uri string) (bool, error) {
 		req.Header = headers
 		resp, err = client.Do(req)
 		if err != nil {
-			return false, err
+			return "", err
 		}
 		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return "", err
+		}
 	} else {
-		return false, fmt.Errorf("response status code should have been 401, it was %v", resp.StatusCode)
+		return "", fmt.Errorf("response status code should have been 401, it was %v", resp.StatusCode)
 	}
-	return resp.StatusCode == http.StatusOK, err
+	rspbody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	return string(rspbody), nil
 }
 
 /*
