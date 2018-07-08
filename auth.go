@@ -39,7 +39,7 @@ const (
 	nc = "00000001"
 )
 
-func Auth(username string, password string, uri string) (bool, error) {
+func Auth(username, password, method, uri string) (bool, error) {
 	client := DefaultTimeoutClient()
 	jar := &myjar{}
 	jar.jar = make(map[string][]*http.Cookie)
@@ -47,10 +47,11 @@ func Auth(username string, password string, uri string) (bool, error) {
 	var req *http.Request
 	var resp *http.Response
 	var err error
-	req, err = http.NewRequest("GET", uri, nil)
+	req, err = http.NewRequest(method, uri, nil)
 	if err != nil {
 		return false, err
 	}
+	u, _ := url.Parse(uri)
 	headers := http.Header{
 		"User-Agent":      []string{userAgent},
 		"Accept":          []string{"*/*"},
@@ -84,7 +85,7 @@ func Auth(username string, password string, uri string) (bool, error) {
 
 		// A2
 		h = md5.New()
-		A2 := fmt.Sprintf("GET:%s", "/auth")
+		A2 := fmt.Sprintf("%s:%s", method, u.Path)
 		io.WriteString(h, A2)
 		HA2 := hex.EncodeToString(h.Sum(nil))
 
@@ -93,8 +94,8 @@ func Auth(username string, password string, uri string) (bool, error) {
 		response := H(strings.Join([]string{HA1, nonceHeader, nc, cnonce, qopHeader, HA2}, ":"))
 
 		// now make header
-		AuthHeader := fmt.Sprintf(`Digest username="%s", realm="%s", nonce="%s", uri="%s", response="%s", qop=%s, nc=%s, cnonce="%s", opaque="%s", algorithm="%s"`,
-			username, realmHeader, nonceHeader, "/auth", response, qopHeader, nc, cnonce, opaqueHeader, algorithm)
+		AuthHeader := fmt.Sprintf(`X-Digest username="%s", realm="%s", nonce="%s", uri="%s", response="%s", qop=%s, nc=%s, cnonce="%s", opaque="%s", algorithm="%s"`,
+			username, realmHeader, nonceHeader, u.Path, response, qopHeader, nc, cnonce, opaqueHeader, algorithm)
 
 		headers := http.Header{
 			"User-Agent":      []string{userAgent},
@@ -124,7 +125,7 @@ func Auth(username string, password string, uri string) (bool, error) {
 */
 func DigestAuthParams(r *http.Response) map[string]string {
 	s := strings.SplitN(r.Header.Get("Www-Authenticate"), " ", 2)
-	if len(s) != 2 || s[0] != "Digest" {
+	if len(s) != 2 || s[0] != "X-Digest" {
 		return nil
 	}
 
